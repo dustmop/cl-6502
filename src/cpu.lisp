@@ -2,7 +2,6 @@
 
 ;;;; REFERENCES:
 ;; http://www.obelisk.demon.co.uk/6502/registers.html
-;; http://www.obelisk.demon.co.uk/6502/addressing.html
 ;; http://nesdev.parodius.com/6502.txt
 
 (deftype u8 () '(unsigned-byte 8))
@@ -37,12 +36,10 @@
 (defparameter *opcodes* (make-array #x100 :element-type 'cons :initial-element nil)
   "A mapping of opcodes to instruction mnemonic/metadata conses.")
 
-;;; Helpers
-
 (defmacro defenum (name (&rest keys))
-  "Define a function named %NAME, that takes args (KEY &OPTIONAL NEXT). If NEXT is
-non-nil, return the successor to KEY. Othewrise, return the index of KEY. KEYS may
-consist of scalar values or lists that start with a scalar value."
+  "Define a function named %NAME, that takes args (KEY &OPTIONAL NEXT). If NEXT
+is non-nil, return the successor to KEY. Othewrise, return the index of KEY.
+KEYS may consist of scalar values or lists that start with a scalar value."
   `(defun ,(intern (format nil "%~:@(~A~)" name)) (key &optional next)
      (let* ((enum ',keys)
             (val (position key enum ,@(when (typep (car keys) 'list)
@@ -50,6 +47,8 @@ consist of scalar values or lists that start with a scalar value."
        (if next
            (nth (mod (1+ val) ,(length keys)) enum)
            val))))
+
+;;; Core API
 
 (defgeneric reset (obj)
   (:documentation "Reset the OBJ to an initial state.")
@@ -61,6 +60,30 @@ consist of scalar values or lists that start with a scalar value."
     (stack-push-word (cpu-pc obj) obj)
     (stack-push (cpu-sr obj) obj)
     (setf (cpu-pc obj) (get-word #xfffa))))
+
+(defgeneric 6502-step (cpu opcode)
+  (:documentation "Step the CPU through the next instruction, returning the CPU
+or :done.")
+  (:method ((cpu cpu) opcode)
+    (handler-case
+        (let ((result (funcall (get-instruction opcode) opcode cpu)))
+          (if (zerop opcode)
+              :done
+              result))
+      (undefined-function ()
+        (error 'illegal-opcode :opcode opcode)))))
+
+(defgeneric execute (cpu &optional program)
+  (:documentation "Step the CPU until a BRK. If a PROGRAM bytevector is supplied,
+load it into RAM and execute it.")
+  (:method ((cpu cpu) &optional program)
+    (when program
+      (setf (get-range 0) program (cpu-pc cpu) 0))
+    (loop for result = (6502-step cpu (get-byte (immediate cpu)))
+       until (eql :done result))
+    cpu))
+
+;;; Helpers
 
 (defun get-instruction (opcode)
   "Get the mnemonic for OPCODE. Returns a symbol to be funcalled or nil."

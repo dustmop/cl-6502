@@ -5,14 +5,6 @@
 ;; https://github.com/mnaberez/py65/blob/master/src/py65/devices/mpu6502.py
 ;; http://nesdev.parodius.com/6502.txt
 
-;;;; DESIGN:
-;; Why methods and a case instead of functions inline in the case?
-;; Well, now we can use :around methods and the MOP to be awesome/crazy.
-;; Plus who wants one big case statement for a CPU? Ugh. Abstract!
-;; Performance is less interesting than cool features and crazy hacks.
-;; Optimize later! See Frodo redpill + ICU64 for an example of what's possible.
-;; Worth using sb-sprof sampling profiler to find low hanging fruit.
-
 ; TODO: Add support for Decimal mode. (not supported on NES)
 (defopcode adc (:docs "Add to Accumulator with Carry")
     ((#x61 6 2 indirect-x)
